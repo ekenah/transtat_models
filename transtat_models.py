@@ -44,8 +44,7 @@ class EpiModel:
 
         """
         # directed graph with covariate data; remove self-loops.
-        selfloops = digraph.selfloop_edges()
-        if selfloops:
+        if digraph.number_of_selfloops() > 0:
             raise Exception("Self-loops in digraph not allowed.")
         self.n = digraph.number_of_nodes()
         self.digraph = digraph
