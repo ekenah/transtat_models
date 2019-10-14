@@ -232,16 +232,17 @@ class EpiModel:
                         # time at risk of transmission to be determined
                         escapes.append((i, j))
                 elif vi != None and Itime[vi] < Etime[i]:
-                    # i infected internally before time t
-                    if Rtime[vi] < Etime[i]:
-                        # follow-up ends with recovery of vi
-                        exit = Rtime[vi]
-                        infset = 0
-                    else:
-                        # follow-up ends with infection of i
-                        exit = Etime[i]
-                        infset = 1
-                    pdata.append((vi, i, Itime[vi], exit, 0, infset))
+                    pdata.append((vi, i, Itime[vi], Etime[i], 0, 1))
+#                    # i infected internally before time t
+#                    if Rtime[vi] < Etime[i]:
+#                        # follow-up ends with recovery of vi
+#                        exit = Rtime[vi]
+#                        infset = 0
+#                    else:
+#                        # follow-up ends with infection of i
+#                        exit = Etime[i]
+#                        infset = 1
+#                    pdata.append((vi, i, Itime[vi], exit, 0, infset))
 
             # define end of observation
             if stop_size == self.n:
