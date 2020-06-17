@@ -3,6 +3,7 @@ import csv
 
 import numpy as np
 import scipy.stats as stat
+import networkx as nx
 
 class EpiModel:
     """
@@ -26,7 +27,7 @@ class EpiModel:
             digraph: NetworkX DiGraph with pairwise covariates for internal 
                 transmission stored as digraph[i][j]["xij"] for edge ij. 
                 Latent periods, infectious periods, and individual-level 
-                covariates for node i are stored in digraph.node[i] under the 
+                covariates for node i are stored in digraph.nodes[i] under the 
                 keys "latpd", "infpd", and "xi", respectively. Any node labels 
                 except None can be used.
             CIdist: SciPy.stats distribution for contact interval when all 
@@ -44,7 +45,7 @@ class EpiModel:
 
         """
         # directed graph with covariate data; remove self-loops.
-        if digraph.number_of_selfloops() > 0:
+        if nx.number_of_selfloops(digraph) > 0:
             raise Exception("Self-loops in digraph not allowed.")
         self.n = digraph.number_of_nodes()
         self.digraph = digraph
@@ -91,7 +92,7 @@ class EpiModel:
             CIlist = nullCIlist
         else:
             lnrates = np.array([
-                np.dot(self.xcoef, self.digraph.node[i]["xi"])
+                np.dot(self.xcoef, self.digraph.nodes[i]["xi"])
                 for i in self.digraph.nodes()
             ])
             CIlist = nullCIlist / np.exp(lnrates)
@@ -114,8 +115,8 @@ class EpiModel:
 
         """
         neighbors = np.array(neighbors)
-        latpd = self.digraph.node[i]["latpd"]
-        infpd = self.digraph.node[i]["infpd"]
+        latpd = self.digraph.nodes[i]["latpd"]
+        infpd = self.digraph.nodes[i]["infpd"]
 
         # generate contact intervals
         nullCIlist = self.CIdist.rvs(size = len(neighbors))
@@ -201,8 +202,8 @@ class EpiModel:
                     size += 1
 
                     # get latent and infectious periods
-                    latpd = self.digraph.node[i]["latpd"]
-                    infpd = self.digraph.node[i]["infpd"]
+                    latpd = self.digraph.nodes[i]["latpd"]
+                    infpd = self.digraph.nodes[i]["infpd"]
                     Etime[i] = t
                     Itime[i] = t + latpd
                     Rtime[i] = t + latpd + infpd
@@ -267,7 +268,7 @@ class EpiModel:
                         infset = 0
                     else:
                         # j infected by source other than i
-                        if Etime[j] < Rtime[i]:
+                        if Etime[j] > Itime[i] and Etime[j] < Rtime[i]:
                             # i is in the infectious set of j
                             exit = Etime[j]
                             infset = 1
@@ -316,7 +317,7 @@ class EpiModel:
                 # add individual-level covariates
                 xdata = [
                     (i, entry, exit, infector, infset, trace) 
-                    + self.digraph.node[i]["xi"]
+                    + self.digraph.nodes[i]["xi"]
                     for (i, entry, exit, infector, infset, trace) in xdata
                 ]
             self.xdata = xdata
