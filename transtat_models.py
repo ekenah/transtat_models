@@ -1,3 +1,9 @@
+"""
+This module defines a network-based epidemic model.
+
+Classes: EpiModel
+"""
+
 import heapq as hp
 import csv
 
@@ -79,6 +85,10 @@ class EpiModel:
             raise Exception("External covariate names expected.")
         self.xnames = xnames
         self.xcoef = xcoef
+
+        # epidemic data
+        self.pdata = None
+        self.xdata = None
 
     def external_contacts(self):
         """Generate contact intervals from external sources.
@@ -265,18 +275,18 @@ class EpiModel:
                     # i infectious before end of observation at T
                     if j not in Etime:
                         # j not infected
-                        exit = min(T, Rtime[i])
+                        exitt = min(T, Rtime[i])
                         infset = 0
                     else:
                         # j infected by source other than i
                         if Etime[j] > Itime[i] and Etime[j] < Rtime[i]:
                             # i is in the infectious set of j
-                            exit = Etime[j]
+                            exitt = Etime[j]
                             infset = 1
                         else:
-                            exit = Rtime[i]
+                            exitt = Rtime[i]
                             infset = 0
-                    pdata.append((i, j, Itime[i], exit, 0, infset))
+                    pdata.append((i, j, Itime[i], exitt, 0, infset))
 
         if pdata:
             # record pairwise transmission data
@@ -295,12 +305,12 @@ class EpiModel:
                 xdata.append((i, 0, Etime[i], 1, 1))
             for i in set(self.digraph.nodes()).difference(xinf):
                 if i in Etime:
-                    exit = Etime[i]
+                    exitt = Etime[i]
                     infset = 1
                 else:
-                    exit = T
+                    exitt = T
                     infset = 0
-                xdata.append((i, 0, exit, 0, infset))
+                xdata.append((i, 0, exitt, 0, infset))
             if self.xcoef is not None:
                 # add individual-level covariates
                 xdata = [
@@ -316,11 +326,11 @@ class EpiModel:
 
         """
         pvars = (
-            "infectious", "susceptible", "entry", "exit", "infector", "infset"
+            "infectious", "susceptible", "entry", "exitt", "infector", "infset"
         )
         if self.pnames:
             pvars += self.pnames
-        with open(filename, "w") as csvfile:
+        with open(filename, "w", encoding = "utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(pvars)
             for row in self.pdata:
@@ -339,7 +349,7 @@ class EpiModel:
         )
         if self.xnames:
             xvars += self.xnames
-        with open(filename, "w") as csvfile:
+        with open(filename, "w", encoding = "utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(xvars)
             for row in self.xdata:
