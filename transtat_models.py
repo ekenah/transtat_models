@@ -1,8 +1,9 @@
 """This module defines a network-based epidemic model."""
 
+# import built-in Python modules
 import heapq as hp
-import csv
 
+# import Python packages
 import numpy as np
 import scipy.stats as stat
 import networkx as nx
@@ -290,10 +291,10 @@ class EpiModel:
             if self.pcoef is not None:
                 # add pairwise covariates
                 pdata = [
-                    prow + self.digraph[prow[0]][prow[1]]["xij"] 
+                    prow + self.digraph[prow[0]][prow[1]]["xij"]
                     for prow in pdata]
             pvars = (
-                "infectious", "susceptible", "entry", "exit", "infector", 
+                "infectious", "susceptible", "entry", "exit", "infector",
                 "infset")
             if self.pnames:
                 pvars += self.pnames
