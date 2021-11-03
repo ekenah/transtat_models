@@ -1,8 +1,4 @@
-"""
-This module defines a network-based epidemic model.
-
-Classes: EpiModel
-"""
+"""This module defines a network-based epidemic model."""
 
 import heapq as hp
 import csv
@@ -10,6 +6,7 @@ import csv
 import numpy as np
 import scipy.stats as stat
 import networkx as nx
+import pandas as pd
 
 
 class EpiModel:
@@ -25,7 +22,7 @@ class EpiModel:
 
     """
     def __init__(self,
-                 digraph, CIdist=stat.expon(), xCIdist=None,
+                 digraph, cidist=stat.expon(), xcidist=None,
                  pnames=None, pcoef=None, xnames=None, xcoef=None):
         """Initialize network-based stochastic SEIR model.
 
@@ -36,9 +33,9 @@ class EpiModel:
                 covariates for node i are stored in digraph.nodes[i] under the
                 keys "latpd", "infpd", and "xi", respectively. Any node labels
                 except None can be used.
-            CIdist: SciPy.stats distribution for contact interval when all
+            cidist: SciPy.stats distribution for contact interval when all
                 covariates equal zero. Default is exponential(1).
-            xCIdist: SciPy.stats distribution for external contact interval
+            xcidist: SciPy.stats distribution for external contact interval
                 when all covariates equal zero.
             pnames: A tuple of names for each covariate in the internal
                 transmission model.
@@ -57,8 +54,8 @@ class EpiModel:
         self.digraph = digraph
 
         # internal and external contact interval distributions
-        self.CIdist = CIdist
-        self.xCIdist = xCIdist
+        self.cidist = cidist
+        self.xcidist = xcidist
 
         # pairwise covariates and coefficients
         if pnames is not None:
@@ -98,16 +95,16 @@ class EpiModel:
                 contact.
 
         """
-        nullCIlist = self.xCIdist.rvs(size=self.n)
+        nullcilist = self.xcidist.rvs(size=self.n)
         if self.xcoef is None:
-            CIlist = nullCIlist
+            cilist = nullcilist
         else:
             lnrates = np.array([
                 np.dot(self.xcoef, self.digraph.nodes[i]["xi"])
                 for i in self.digraph.nodes()
             ])
-            CIlist = nullCIlist / np.exp(lnrates)
-        return(zip(self.digraph.nodes(), CIlist))
+            cilist = nullcilist / np.exp(lnrates)
+        return(zip(self.digraph.nodes(), cilist))
 
     def infectious_contacts(self, i, t, neighbors):
         """Generate contact intervals from i to susceptible neighbors.
@@ -131,25 +128,25 @@ class EpiModel:
         infpd = self.digraph.nodes[i]["infpd"]
 
         # generate contact intervals
-        nullCIlist = self.CIdist.rvs(size=len(neighbors))
+        nullcilist = self.cidist.rvs(size=len(neighbors))
         if self.pcoef is None:
-            CIlist = nullCIlist
+            cilist = nullcilist
         else:
             idict = self.digraph[i]
             lnrates = [
                 np.dot(self.pcoef, idict[j]["xij"]) for j in neighbors
             ]
-            CIlist = nullCIlist / np.exp(lnrates)
+            cilist = nullcilist / np.exp(lnrates)
 
         # test whether contact interval <= infpd
-        CItest = np.less_equal(CIlist, infpd)
+        citest = np.less_equal(cilist, infpd)
 
         # return dictionary of contacts and escapes
         return {
             'neighbors': neighbors,
-            'contacts': zip(t + latpd + CIlist[CItest], neighbors[CItest]),
+            'contacts': zip(t + latpd + cilist[citest], neighbors[citest]),
             'escapes': zip(
-                [t + latpd + infpd] * sum(~CItest), neighbors[~CItest]
+                [t + latpd + infpd] * sum(~citest), neighbors[~citest]
             )
         }
 
@@ -169,9 +166,9 @@ class EpiModel:
                 to obtain at least "stop_size" infections. Set to one
                 if stop_size = None.
 
-        Returns (adds attributes to self)
+        Returns (sets following attributes to self)
             self.pdata: List of (i, j, entry, exit, infector, infset)
-                + covariates where infector indicates whether i
+                + covariates where "infector indicates whether i
                 infected j, and infset indicates whether i is in the
                 infectious set of j.
             self.xdata: List of (j, entry, exit, infector, infset)
@@ -187,9 +184,9 @@ class EpiModel:
             attempts = 1
         while size < stop_size and att < attempts:
             # initialize data dictionaries
-            Etime = dict()      # Infection times
-            Itime = dict()      # Onset of infectiousness times
-            Rtime = dict()      # End of infectiousness times
+            etime = dict()      # Infection times
+            itime = dict()      # Onset of infectiousness times
+            rtime = dict()      # End of infectiousness times
 
             # initialize data lists
             pdata = []      # pairwise transmission data
@@ -209,29 +206,29 @@ class EpiModel:
                 hp.heappush(epiheap, (t, i, None))
             while epiheap and size < stop_size:
                 t, i, vi = hp.heappop(epiheap)
-                if i not in Etime:
+                if i not in etime:
                     # i infected at time ti = t
                     size += 1
 
                     # get latent and infectious periods
                     latpd = self.digraph.nodes[i]["latpd"]
                     infpd = self.digraph.nodes[i]["infpd"]
-                    Etime[i] = t
-                    Itime[i] = t + latpd
-                    Rtime[i] = t + latpd + infpd
+                    etime[i] = t
+                    itime[i] = t + latpd
+                    rtime[i] = t + latpd + infpd
 
                     # record data for i
-                    # pdata is (vi, i, Itime[vi], t, infector, infset)
+                    # pdata is (vi, i, itime[vi], t, infector, infset)
                     if vi is not None:
                         # i infected internally by vi
-                        pdata.append((vi, i, Itime[vi], t, 1, 1))
+                        pdata.append((vi, i, itime[vi], t, 1, 1))
                     else:
                         xinf.append(i)
 
                     # infectious contacts from i to susceptible neighbors
                     neighbors = [
                         j for j in self.digraph.successors(i)
-                        if j not in Etime
+                        if j not in etime
                     ]
                     inf_contacts = self.infectious_contacts(i, t, neighbors)
 
@@ -243,115 +240,83 @@ class EpiModel:
                         # time at risk of transmission to be determined
                         escapes.append((i, j))
 
-                elif vi is not None and Itime[vi] < Etime[i]:
-                    pdata.append((vi, i, Itime[vi], Etime[i], 0, 1))
+                elif vi is not None and itime[vi] < etime[i]:
+                    pdata.append((vi, i, itime[vi], etime[i], 0, 1))
 
             # define end of observation
             if stop_size == self.n:
                 # observation until removal of last infected
-                T = t + latpd + infpd
+                tstop = t + latpd + infpd
             else:
                 # observation until stop_size^th infection time
-                T = t
+                tstop = t
 
             # record remaining data from epiheap
-            # pdata is (i, j, Itime[vi], exit, infector, infset)
+            # pdata is (i, j, itime[vi], exit, infector, infset)
             while epiheap:
                 tij, j, i = hp.heappop(epiheap)
-                if j not in Etime:
+                if j not in etime:
                     # j not infected
-                    if i is not None and Itime[i] < T:
-                        # j exposed to i and i still infectious (tij > T)
-                        pdata.append((i, j, Itime[i], T, 0, 0))
+                    if i is not None and itime[i] < tstop:
+                        # j exposed to i and i still infectious (tij > tstop)
+                        pdata.append((i, j, itime[i], tstop, 0, 0))
                 else:
                     # j infected
-                    if i is not None and Itime[i] < Etime[j]:
+                    if i is not None and itime[i] < etime[j]:
                         # j exposed to i and i infectious at tj
-                        pdata.append((i, j, Itime[i], Etime[j], 0, 1))
+                        pdata.append((i, j, itime[i], etime[j], 0, 1))
 
             # record data from escapes
             for (i, j) in escapes:
-                if Itime[i] < T:
-                    # i infectious before end of observation at T
-                    if j not in Etime:
+                if itime[i] < tstop:
+                    # i infectious before end of observation at tstop
+                    if j not in etime:
                         # j not infected
-                        exitt = min(T, Rtime[i])
+                        texit = min(tstop, rtime[i])
                         infset = 0
                     else:
                         # j infected by source other than i
-                        if Etime[j] > Itime[i] and Etime[j] < Rtime[i]:
+                        if etime[j] > itime[i] and etime[j] < rtime[i]:
                             # i is in the infectious set of j
-                            exitt = Etime[j]
+                            texit = etime[j]
                             infset = 1
                         else:
-                            exitt = Rtime[i]
+                            texit = rtime[i]
                             infset = 0
-                    pdata.append((i, j, Itime[i], exitt, 0, infset))
+                    pdata.append((i, j, itime[i], texit, 0, infset))
 
         if pdata:
             # record pairwise transmission data
             if self.pcoef is not None:
                 # add pairwise covariates
                 pdata = [
-                    prow + self.digraph[i][j]["xij"] for prow in pdata
-                ]
-            self.pdata = pdata
+                    prow + self.digraph[i][j]["xij"] for prow in pdata]
+            pvars = (
+                "infectious", "susceptible", "entry", "exit", "infector", "infset")
+            if self.pnames:
+                pvars += self.pnames
+            self.pdata = pd.DataFrame(pdata, columns = pvars)
 
         if xinf:
             # record external transmission data
             # xdata is (i, entry, exit, infector, infset) + covariates
             for i in xinf:
                 # i infected from an external source
-                xdata.append((i, 0, Etime[i], 1, 1))
+                xdata.append((i, 0, etime[i], 1, 1))
             for i in set(self.digraph.nodes()).difference(xinf):
-                if i in Etime:
-                    exitt = Etime[i]
+                if i in etime:
+                    texit = etime[i]
                     infset = 1
                 else:
-                    exitt = T
+                    texit = tstop
                     infset = 0
-                xdata.append((i, 0, exitt, 0, infset))
+                xdata.append((i, 0, texit, 0, infset))
             if self.xcoef is not None:
                 # add individual-level covariates
                 xdata = [
-                    xrow + self.digraph.nodes[i]["xi"] for xrow in xdata
-                ]
-            self.xdata = xdata
-
-    def write_pdata(self, filename):
-        """Write pairwise transmission data to csv file.
-
-        Arguments
-            filename: Name of csv file.
-
-        """
-        pvars = (
-            "infectious", "susceptible", "entry", "exitt", "infector", "infset"
-        )
-        if self.pnames:
-            pvars += self.pnames
-        with open(filename, "w", encoding = "utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(pvars)
-            for row in self.pdata:
-                writer.writerow(row)
-            csvfile.close()
-
-    def write_xdata(self, filename):
-        """Write external transmission data to csv file.
-
-        Arguments
-            filename: Name of csv file.
-
-        """
-        xvars = (
-            "susceptible", "entry", "exit", "infector", "infset", "trace"
-        )
-        if self.xnames:
-            xvars += self.xnames
-        with open(filename, "w", encoding = "utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(xvars)
-            for row in self.xdata:
-                writer.writerow(row)
-            csvfile.close()
+                    xrow + self.digraph.nodes[i]["xi"] for xrow in xdata]
+            xvars = (
+                "susceptible", "entry", "exit", "infector", "infset")
+            if self.xnames:
+                xvars += self.xnames
+            self.xdata = pd.DataFrame(xdata, columns = xvars)
