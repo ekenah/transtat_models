@@ -290,9 +290,11 @@ class EpiModel:
             if self.pcoef is not None:
                 # add pairwise covariates
                 pdata = [
-                    prow + self.digraph[i][j]["xij"] for prow in pdata]
+                    prow + self.digraph[prow[0]][prow[1]]["xij"] 
+                    for prow in pdata]
             pvars = (
-                "infectious", "susceptible", "entry", "exit", "infector", "infset")
+                "infectious", "susceptible", "entry", "exit", "infector", 
+                "infset")
             if self.pnames:
                 pvars += self.pnames
             self.pdata = pd.DataFrame(pdata, columns = pvars)
@@ -314,7 +316,7 @@ class EpiModel:
             if self.xcoef is not None:
                 # add individual-level covariates
                 xdata = [
-                    xrow + self.digraph.nodes[i]["xi"] for xrow in xdata]
+                    xrow + self.digraph.nodes[xrow[0]]["xi"] for xrow in xdata]
             xvars = (
                 "susceptible", "entry", "exit", "infector", "infset")
             if self.xnames:
