@@ -291,7 +291,7 @@ class EpiModel:
             if self.pcoef is not None:
                 # add pairwise covariates
                 pdata = [
-                    prow + self.digraph[prow[0]][prow[1]]["xij"]
+                    prow + self.digraph.edges[prow[0], prow[1]]["xij"]
                     for prow in pdata]
             pvars = (
                 "infectious", "susceptible", "entry", "exit", "infector",
